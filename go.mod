@@ -1,4 +1,4 @@
-module github.com/dylt.dev/seq
+module github.com/dylt-dev/seq
 
 go 1.23.0
 
