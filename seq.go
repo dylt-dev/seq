@@ -34,6 +34,28 @@ func (o *HasErr) Err() error {
 	return o.lastErr
 }
 
+type HasIter[T any] struct {
+	sq Seq[T]
+}
+
+func NewHasIter[T any] (sq Seq[T]) *HasIter[T] {
+	return &HasIter[T]{sq}
+}
+
+func (o *HasIter[T]) Iter () IterFunc1[T] {
+	return Iter1(o.sq)
+}
+
+func (o *HasIter[T]) IterWithIndex () IterFunc2[T] {
+	return Iter2(o.sq)
+}
+
+func (o *HasIter[T]) IterNoArg () IterFunc0 {
+	return Iter0(o.sq)
+}
+
+
+
 type HasPosition struct {
 	lastPos int
 	pos     int
@@ -99,17 +121,23 @@ func (seq *RuneSeq) Next() (rune, error) {
 }
 
 type LineSeq struct {
+	*HasErr
+	*HasIter[string]
 	*HasPosition
 	rd      io.Reader
 	runeSeq *RuneSeq
 }
 
 func NewLineSeq(rd io.Reader) *LineSeq {
-	return &LineSeq{
+	var sq *LineSeq = &LineSeq{
+		HasErr:      NewHasErr(),
 		HasPosition: NewHasPosition(),
 		rd:          rd,
 		runeSeq:     NewRuneSeq(rd),
 	}
+	// HasIter needs the Seq object so it needs special treatment
+	sq.HasIter = NewHasIter(sq)
+	return sq
 }
 
 func (seq *LineSeq) Err() error {
@@ -249,9 +277,18 @@ func Iter0[T any](seq Seq[T]) IterFunc0 {
 
 func Iter1[T any](seq Seq[T]) IterFunc1[T] {
 	return func(loopFunc LoopFunc1[T]) {
+		/*
+		Next() == (non-empty, nil) => loopFunc(val)
+		Next() == (non-empty, non-nil) => loopFunc(val)
+		Next() == (empty, nil) => loopFunc(val)
+		Next() -- (empty, non-nil) => break
+		loopFunc == false => break
+		*/
+		var suchEmpty T = *new(T)
+		if (t1 == *new(T)) { }
 		for {
 			t, err := seq.Next()
-			if !loopFunc(t) || err != nil {
+			if (t == *new(T) && err != nil) || !loopFunc(t) {
 				break
 			}
 		}
@@ -269,4 +306,22 @@ func Iter2[T any](seq Seq[T]) IterFunc2[T] {
 			i++
 		}
 	}
+}
+
+type seqInner[T any] struct {
+	i int
+	limit int
+}
+
+func (sq *seqInner[T]) Next () (T, error) {
+	if sq.i < sq.limit {
+		sq.i++
+		return sq.Next()
+	}
+	var t T
+	return t, io.EOF
+}
+
+func Limit[T any] (seq Seq[T], limit int) Seq[T] {
+	return &seqInner[T]{i: 0, limit: limit}
 }

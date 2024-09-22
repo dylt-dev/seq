@@ -15,7 +15,7 @@ func main () {
 	petNamesSeq := seq.NewLineSeq(rd)
 	// load all the names into an array
 	names := []string{}
-	for name := range seq.Iter1(petNamesSeq) {
+	for name := range petNamesSeq.Iter() {
 		// Sequences let you check if the previous read actually resulted in an error, like EOF
 		if petNamesSeq.Err() == nil {
 			fmt.Printf("name=%s\n", name)

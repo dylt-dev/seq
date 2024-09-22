@@ -122,3 +122,26 @@ func TestSimpleRacer(t *testing.T) {
 		if i >= 100 { break }
 	}
 }
+
+func TestLimit0 (t *testing.T) {
+	rd, err := os.Open("./petnames.txt")
+	if err != nil { panic("Unable to open petnames file")}
+	petNamesSeq := NewLineSeq(rd)
+	names := []string{}
+	for name := range Iter1(Limit(petNamesSeq, 5)) {
+		// Sequences let you check if the previous read actually resulted in an error, like EOF
+		if petNamesSeq.Err() == nil {
+			fmt.Printf("name=%s\n", name)
+			names = append(names, name)
+		} else {
+			// EOFs are ok. Other errors are terrifying.
+			if errors.Is(petNamesSeq.Err(), io.EOF) {
+				fmt.Println("Normal EOF reached. All is well.")
+			} else {
+				fmt.Printf("%v\n", err)
+				panic("Unepxected error!")
+			}
+		}
+	}
+	fmt.Printf("%d name(s) in the array\n", len(names))
+}
