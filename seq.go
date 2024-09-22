@@ -9,16 +9,16 @@ import (
 )
 
 type LoopFunc0 func() bool
-type LoopFunc1[T any] func(arg T) bool
-type LoopFunc2[T any] func(i int, arg T) bool
+type LoopFunc1[T comparable] func(arg T) bool
+type LoopFunc2[T comparable] func(i int, arg T) bool
 type IterFunc0 func(loopFunc LoopFunc0)
-type IterFunc1[T any] func(loopFunc LoopFunc1[T])
-type IterFunc2[T any] func(loopFunc LoopFunc2[T])
+type IterFunc1[T comparable] func(loopFunc LoopFunc1[T])
+type IterFunc2[T comparable] func(loopFunc LoopFunc2[T])
 type NextFunc0 func() error
-type NextFunc1[T any] func() (T, error)
-type NextFunc2[T any] func() (int, T, error)
+type NextFunc1[T comparable] func() (T, error)
+type NextFunc2[T comparable] func() (int, T, error)
 
-type Seq[T any] interface {
+type Seq[T comparable] interface {
 	Next() (T, error)
 }
 
@@ -57,7 +57,7 @@ func (o *HasPosition) Update(n int) int {
 	return o.pos
 }
 
-func Count[T any](seq Seq[T]) (int, error) {
+func Count[T comparable](seq Seq[T]) (int, error) {
 	var err error
 	var n int
 	for n = 0; ; n++ {
@@ -236,7 +236,7 @@ func (racer *SimpleRacer) Next() (float32, error) {
 // 	return fn
 // }
 
-func Iter0[T any](seq Seq[T]) IterFunc0 {
+func Iter0[T comparable](seq Seq[T]) IterFunc0 {
 	return func(loopFunc LoopFunc0) {
 		for {
 			_, err := seq.Next()
@@ -247,7 +247,7 @@ func Iter0[T any](seq Seq[T]) IterFunc0 {
 	}
 }
 
-func Iter1[T any](seq Seq[T]) IterFunc1[T] {
+func Iter1[T comparable](seq Seq[T]) IterFunc1[T] {
 	return func(loopFunc LoopFunc1[T]) {
 		for {
 			t, err := seq.Next()
@@ -258,7 +258,7 @@ func Iter1[T any](seq Seq[T]) IterFunc1[T] {
 	}
 }
 
-func Iter2[T any](seq Seq[T]) IterFunc2[T] {
+func Iter2[T comparable](seq Seq[T]) IterFunc2[T] {
 	return func(loopFunc LoopFunc2[T]) {
 		i := 0
 		for {
