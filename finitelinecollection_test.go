@@ -173,7 +173,7 @@ func TestRandomLineSeq3(t *testing.T) {
 	lines := []string{"a", "b", "c"}
 	var flc FiniteLineCollection = NewArrayFiniteLineCollection(lines)
 	seq := NewRandomLineSeq(flc, 0)
-	for i, line := range Iter2(seq) {
+	for i, line := range IterWithIndex(seq) {
 		if seq.Err() == nil && line != "" {
 			t.Logf("%d: line=%s\n", i, line)
 		}

@@ -3,6 +3,7 @@ package seq
 import (
 	"bufio"
 	"errors"
+	"fmt"
 	"io"
 	"math/rand/v2"
 	"strings"
@@ -34,27 +35,25 @@ func (o *HasErr) Err() error {
 	return o.lastErr
 }
 
-type HasIter[T any] struct {
+type HasIter[T comparable] struct {
 	sq Seq[T]
 }
 
-func NewHasIter[T any] (sq Seq[T]) *HasIter[T] {
+func NewHasIter[T comparable](sq Seq[T]) *HasIter[T] {
 	return &HasIter[T]{sq}
 }
 
-func (o *HasIter[T]) Iter () IterFunc1[T] {
-	return Iter1(o.sq)
+func (o *HasIter[T]) Iter() IterFunc1[T] {
+	return Iter(o.sq)
 }
 
-func (o *HasIter[T]) IterWithIndex () IterFunc2[T] {
-	return Iter2(o.sq)
+func (o *HasIter[T]) IterWithIndex() IterFunc2[T] {
+	return IterWithIndex(o.sq)
 }
 
-func (o *HasIter[T]) IterNoArg () IterFunc0 {
-	return Iter0(o.sq)
+func (o *HasIter[T]) IterNoArg() IterFunc0 {
+	return IterNoArg(o.sq)
 }
-
-
 
 type HasPosition struct {
 	lastPos int
@@ -146,7 +145,7 @@ func (seq *LineSeq) Err() error {
 
 func (seq *LineSeq) Next() (string, error) {
 	b := strings.Builder{}
-	for ru := range Iter1(seq.runeSeq) {
+	for ru := range Iter(seq.runeSeq) {
 		if seq.runeSeq.lastSize > 0 {
 			b.WriteRune(ru)
 		}
@@ -168,7 +167,7 @@ type RandomLineSeq struct {
 	shoe int
 }
 
-func NewRng () *rand.Rand {
+func NewRng() *rand.Rand {
 	// t0 := uint64(time.Now().UnixNano())
 	// t1 := uint64(time.Now().UnixNano())
 	// src := rand.NewPCG(t0, t1)
@@ -264,28 +263,27 @@ func (racer *SimpleRacer) Next() (float32, error) {
 // 	return fn
 // }
 
-func Iter0[T comparable](seq Seq[T]) IterFunc0 {
+func IterNoArg[T comparable](seq Seq[T]) IterFunc0 {
 	return func(loopFunc LoopFunc0) {
 		for {
-			_, err := seq.Next()
-			if !loopFunc() || err != nil {
+			t, err := seq.Next()
+			if (t == *new(T) && err != nil) || !loopFunc() {
 				break
 			}
 		}
 	}
 }
 
-func Iter1[T comparable](seq Seq[T]) IterFunc1[T] {
+func Iter[T comparable](seq Seq[T]) IterFunc1[T] {
 	return func(loopFunc LoopFunc1[T]) {
 		/*
-		Next() == (non-empty, nil) => loopFunc(val)
-		Next() == (non-empty, non-nil) => loopFunc(val)
-		Next() == (empty, nil) => loopFunc(val)
-		Next() -- (empty, non-nil) => break
-		loopFunc == false => break
+			Next() == (non-empty, nil) => loopFunc(val)
+			Next() == (non-empty, non-nil) => loopFunc(val)
+			Next() == (empty, nil) => loopFunc(val)
+			Next() -- (empty, non-nil) => break
+			loopFunc == false => break
+			(*new)T is 'the zero value irrespective of generic type' in Go
 		*/
-		var suchEmpty T = *new(T)
-		if (t1 == *new(T)) { }
 		for {
 			t, err := seq.Next()
 			if (t == *new(T) && err != nil) || !loopFunc(t) {
@@ -295,12 +293,12 @@ func Iter1[T comparable](seq Seq[T]) IterFunc1[T] {
 	}
 }
 
-func Iter2[T comparable](seq Seq[T]) IterFunc2[T] {
+func IterWithIndex[T comparable](seq Seq[T]) IterFunc2[T] {
 	return func(loopFunc LoopFunc2[T]) {
 		i := 0
 		for {
 			t, err := seq.Next()
-			if !loopFunc(i, t) || err != nil {
+			if (t == *new(T) && err != nil) || !loopFunc(i, t) {
 				break
 			}
 			i++
@@ -308,20 +306,93 @@ func Iter2[T comparable](seq Seq[T]) IterFunc2[T] {
 	}
 }
 
-type seqInner[T any] struct {
-	i int
-	limit int
+type seqLimit[T comparable] struct {
+	*HasErr
+	sqInner Seq[T]
+	i       int
+	limit   int
 }
 
-func (sq *seqInner[T]) Next () (T, error) {
+func (sq *seqLimit[T]) Next() (T, error) {
+	fmt.Printf("In seqLimitWrapper.Next() ...")
+	fmt.Printf("sq.i=%d sq.limit=%d\n", sq.i, sq.limit)
 	if sq.i < sq.limit {
+		fmt.Println("Under the limit ... we good")
 		sq.i++
-		return sq.Next()
+		tInner, errInner := sq.sqInner.Next()
+		fmt.Printf("sq.Inner.Next(): tInner=%v errInner=%v\n", tInner, errInner)
+		sq.lastErr = errInner
+		return tInner, errInner
 	}
-	var t T
-	return t, io.EOF
+	fmt.Println("At the limit -- about to return <empty>, EOF")
+	sq.lastErr = io.EOF
+	return *new(T), io.EOF
 }
 
-func Limit[T any] (seq Seq[T], limit int) Seq[T] {
-	return &seqInner[T]{i: 0, limit: limit}
+func Limit[T comparable](sqInner Seq[T], limit int) *seqLimit[T] {
+	return &seqLimit[T]{NewHasErr(), sqInner, 0, limit}
+}
+
+type FilterFunc[T comparable] func(T) bool
+
+type seqWhere[T comparable] struct {
+	*HasErr
+	sqInner Seq[T]
+	filter  FilterFunc[T]
+}
+
+func NewSeqWhereWrapper[T comparable](sqInner Seq[T], filter FilterFunc[T]) *seqWhere[T] {
+	return &seqWhere[T]{NewHasErr(), sqInner, filter}
+}
+
+func (sq *seqWhere[T]) Next() (T, error) {
+	fmt.Printf("In seqWhereWrapper.Next() ...")
+	for {
+		next, err := sq.sqInner.Next()
+		fmt.Printf("sqInner.Next(): next=%v err=%v\n", next, err)
+		if next == *new(T) && err != nil {
+			fmt.Println("empty+err: we're done")
+			return next, err
+		}
+		if sq.filter(next) {
+			fmt.Println("Match!")
+			return next, err
+		}
+		fmt.Println("no match -- continuing loop")
+	}
+}
+
+func Where[T comparable](sqInner Seq[T], filter FilterFunc[T]) *seqWhere[T] {
+	return NewSeqWhereWrapper(sqInner, filter)
+}
+
+type seqSkip[T comparable] struct {
+	*HasErr
+	sqInner   Seq[T]
+	toSkip    int
+	isSkipped bool
+}
+
+func NewSeqSkipWrapper[T comparable](sqInner Seq[T], toSkip int) *seqSkip[T] {
+	return &seqSkip[T]{NewHasErr(), sqInner, toSkip, false}
+}
+
+func (sq *seqSkip[T]) Next() (T, error) {
+	if !sq.isSkipped {
+		sq.isSkipped = true
+	}
+	for range sq.toSkip {
+		_, err := sq.sqInner.Next()
+		if err != nil {
+			sq.lastErr = err
+			return *new(T), err
+		}
+	}
+	val, err := sq.sqInner.Next()
+	sq.lastErr = err
+	return val, err
+}
+
+func Skip[T comparable](sq Seq[T], toSkip int) *seqSkip[T] {
+	return NewSeqSkipWrapper(sq, toSkip)
 }

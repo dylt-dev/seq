@@ -1,34 +1,57 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/dylt-dev/seq"
 )
 
+/*
+Demo app that demonstrates the following
+
+- Create a seq.LineSeq to get data from an io.Reader line by line
+- Use seq.Where() to filter the results
+- Use seq.Skip() to skip N matches
+- Use seq.Limit() to limit the number of results
+- Use seq.Iter() to create an iterator and for..range on the results
+- Use seq.Seq[T].Next() manually to confirm that after for..range the iterator is as expected
+
+First 10 names from petnames.txt
+--------------
+0. AJ
+1. Abbey
+2. Abbie
+3. Abel
+4. Abigail
+5. Ace
+6. Adam
+7. Admiral
+8. Aires
+9. Ajax
+*/
+
 func main () {
-	rd, err := os.Open("./petnames.txt")
+
+	// Open file of cute pet names
+	var rd io.Reader
+	var err error
+	rd, err = os.Open("./petnames.txt")
 	if err != nil { panic("Unable to open petnames file")}
-	petNamesSeq := seq.NewLineSeq(rd)
-	// load all the names into an array
-	names := []string{}
-	for name := range petNamesSeq.Iter() {
-		// Sequences let you check if the previous read actually resulted in an error, like EOF
-		if petNamesSeq.Err() == nil {
-			fmt.Printf("name=%s\n", name)
-			names = append(names, name)
-		} else {
-			// EOFs are ok. Other errors are terrifying.
-			if errors.Is(petNamesSeq.Err(), io.EOF) {
-				fmt.Println("Normal EOF reached. All is well.")
-			} else {
-				fmt.Printf("%v\n", err)
-				panic("Unepxected error!")
-			}
-		}
+	// Create a LineSeq from the file -- this is a Sequence that returns the contents of a reader \n by \n
+	var sq seq.Seq[string] = seq.NewLineSeq(rd)
+	var filter seq.FilterFunc[string] = func (name string) bool { return strings.HasPrefix(name, "Ab")}
+	sq = seq.Where(sq, filter)		// Only names starting with 'Ab'
+	sq = seq.Skip(sq, 3)			// Skip the first 3 matches
+	sq = seq.Limit(sq, 1)			// Only get 1 match
+	// Print the one match
+	var name string
+	for name = range seq.Iter(sq) {
+		fmt.Printf("name=%s\n", name)
 	}
-	fmt.Printf("%d name(s) in the array\n", len(names))
+	// Confirm that the end state of the sequence is as expected
+	name, err = sq.Next()
+	fmt.Printf("After loop: name=%s err=%s\n", name, err.Error())
 }
