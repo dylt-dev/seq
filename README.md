@@ -1,6 +1,6 @@
 # `seq`
 
-### Making Go Iterators Fun
+### Making Go Iterators Go
 ```
 package main
 
