@@ -3,7 +3,6 @@ package seq
 import (
 	"bufio"
 	"errors"
-	"fmt"
 	"io"
 	"math/rand/v2"
 	"strings"
@@ -314,17 +313,12 @@ type seqLimit[T comparable] struct {
 }
 
 func (sq *seqLimit[T]) Next() (T, error) {
-	fmt.Printf("In seqLimitWrapper.Next() ...")
-	fmt.Printf("sq.i=%d sq.limit=%d\n", sq.i, sq.limit)
 	if sq.i < sq.limit {
-		fmt.Println("Under the limit ... we good")
 		sq.i++
 		tInner, errInner := sq.sqInner.Next()
-		fmt.Printf("sq.Inner.Next(): tInner=%v errInner=%v\n", tInner, errInner)
 		sq.lastErr = errInner
 		return tInner, errInner
 	}
-	fmt.Println("At the limit -- about to return <empty>, EOF")
 	sq.lastErr = io.EOF
 	return *new(T), io.EOF
 }
@@ -346,19 +340,14 @@ func NewSeqWhereWrapper[T comparable](sqInner Seq[T], filter FilterFunc[T]) *seq
 }
 
 func (sq *seqWhere[T]) Next() (T, error) {
-	fmt.Printf("In seqWhereWrapper.Next() ...")
 	for {
 		next, err := sq.sqInner.Next()
-		fmt.Printf("sqInner.Next(): next=%v err=%v\n", next, err)
 		if next == *new(T) && err != nil {
-			fmt.Println("empty+err: we're done")
 			return next, err
 		}
 		if sq.filter(next) {
-			fmt.Println("Match!")
 			return next, err
 		}
-		fmt.Println("no match -- continuing loop")
 	}
 }
 
