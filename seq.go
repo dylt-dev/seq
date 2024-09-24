@@ -28,7 +28,10 @@ type NextFunc2[T comparable] func() (int, T, error)
 //
 // In a typical use case, `Seq` will be implemented by a struct of the desired base type, using a specific data
 // source. `Next()` will get a single element from this data source, keeping track of the current position if
-// needed. 
+// needed. `Next()` indicates completion by returning *new(T), io.EOF, where `*new(T)` represents an empty value for
+// type T, eg 0, nil, of "". Go currently has no better idiom for representing a generic empty value. Consumers of
+// a Seq, eg iterators, can check for return values of (*new*T(), nil) to know when to stop calling Next() and finish
+// up. 
 //
 // structs that implement `Seq` might want to make other information available about the last operation or about
 // the aggregate use of the `Seq`. File-based `Seq`s might track file position ... Network-based `Seq`s might track
@@ -39,6 +42,10 @@ type Seq[T comparable] interface {
 	Next() (T, error)	// Get tne next element in the sequence, and an error or nil
 }
 
+// Seq Add-on for tracking the last error received by `Next()`. Can be used to check if the Seq completed normally (io.EOF),
+// or if some other error happened.
+// Proper usage requires including HasErr or *HasErr as an embedded field, and then making sure Next() updates lastErr with
+// any errors that occur or nil if Next() executes successfully.
 type HasErr struct {
 	lastErr error
 }
@@ -51,31 +58,50 @@ func (o *HasErr) Err() error {
 	return o.lastErr
 }
 
+// Seq Add-on to use Iter(), IterWithIndex(), and IterNoArg() as methods, instead of global functions.
+// HasIter's sq field typically represnts the Seq that embeds HasIter. This means Seq's embedding HasIter
+// cannot initialize HasIter when the Seq is initialized, beause the Seq doesn't exist yet. Instead, create
+// the Seq first, then explicitly create a HasIter and initialize it with a pointer to the new Seq, etc.
+//
+//  var sq *MyNewSeq = &MyNewSeq{}
+//	var hasIter *HasIter = NewHasIter{sq}
+//  sq.HasIter = hasIter
+//
+// If this seems like too much work to support IterXXX() functions as methods, you can just skip HasIter, but
+// some users really like using methods. Up to you.
 type HasIter[T comparable] struct {
 	sq Seq[T]
 }
 
+// C'tor function.
 func NewHasIter[T comparable](sq Seq[T]) *HasIter[T] {
 	return &HasIter[T]{sq}
 }
 
+// Return an iterator. Usage: `for val := range sq.Iter()`
 func (o *HasIter[T]) Iter() IterFunc1[T] {
 	return Iter(o.sq)
 }
 
+// Return an (index, val) iterator. Usage: `for idx, val := range sq.IterWithIndex()`
 func (o *HasIter[T]) IterWithIndex() IterFunc2[T] {
 	return IterWithIndex(o.sq)
 }
 
+// Return a no-arg iterator. Usage: `for range := sq.IterNoArg()`
 func (o *HasIter[T]) IterNoArg() IterFunc0 {
 	return IterNoArg(o.sq)
 }
 
+// Add-on for tracking position of the underlying data source. Example: io.Reader character position
+// for a Seq of lines or tokens. Two positions are available: the last element returned by Next(), and
+// the current position that Next() will use the next time it's called.
 type HasPosition struct {
 	lastPos int
 	pos     int
 }
 
+// C'tor function
 func NewHasPosition() *HasPosition {
 	return &HasPosition{lastPos: 0, pos: 0}
 }
