@@ -1,3 +1,7 @@
+/* Package `seq` implements useful features for dealing with sequences of data. seq was Originally created
+ * to make simplify creating Go Iterators, but it's grown a bit to provide stream-like features that are
+ * familiar to other languages.
+*/
 package seq
 
 import (
@@ -18,8 +22,21 @@ type NextFunc0 func() error
 type NextFunc1[T comparable] func() (T, error)
 type NextFunc2[T comparable] func() (int, T, error)
 
+// Seq is the most fundamental type of the `seq` package. In true Go fashion it only has a single method,
+// `Next()`. `Next()` returns the next element in the sequences, along with any error that may have occured.
+// This provides an opportunity for handling errors that is absent from Go Iterators.
+//
+// In a typical use case, `Seq` will be implemented by a struct of the desired base type, using a specific data
+// source. `Next()` will get a single element from this data source, keeping track of the current position if
+// needed. 
+//
+// structs that implement `Seq` might want to make other information available about the last operation or about
+// the aggregate use of the `Seq`. File-based `Seq`s might track file position ... Network-based `Seq`s might track
+// total bytes received ... it's entirely up to the creator. Users who create Iterators from `Seq`s can check `Seq`
+// custom properties as needed. The only requirement is that the struct's Seq.Next()` method updates those custom 
+// properties as appropriate.
 type Seq[T comparable] interface {
-	Next() (T, error)
+	Next() (T, error)	// Get tne next element in the sequence, and an error or nil
 }
 
 type HasErr struct {
