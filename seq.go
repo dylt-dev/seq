@@ -468,16 +468,19 @@ func NewSeqSkipWrapper[T comparable](sqInner Seq[T], toSkip int) *seqSkip[T] {
 }
 
 func (sq *seqSkip[T]) Next() (T, error) {
+	//  On first call to Next() we do our skip step
 	if !sq.isSkipped {
 		sq.isSkipped = true
-	}
-	for range sq.toSkip {
-		_, err := sq.sqInner.Next()
-		if err != nil {
-			sq.lastErr = err
-			return *new(T), err
+		// skip step: Skip over the specified # of elements
+		for range sq.toSkip {
+			_, err := sq.sqInner.Next()
+			if err != nil {
+				sq.lastErr = err
+				return *new(T), err
+			}
 		}
 	}
+	// We've done the skip step, so now we just delegate to sqInner.Next()
 	val, err := sq.sqInner.Next()
 	sq.lastErr = err
 	return val, err
