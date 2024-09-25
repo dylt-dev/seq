@@ -92,6 +92,10 @@ func IterNoArg[T comparable](seq Seq[T]) IterFunc0 {
 	}
 }
 
+// The function that this was all built to support. `Iter()` takes a sequence and returns
+// an iterator ... specifically it returns the func (func (val T) bool) flavor of iterator,
+// designed to work with for .. range loops that use the value but not the index of each
+// element.
 func Iter[T comparable](seq Seq[T]) IterFunc1[T] {
 	return func(loopFunc LoopFunc1[T]) {
 		/*
