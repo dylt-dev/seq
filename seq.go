@@ -199,7 +199,9 @@ func (seq *LineSeq) Next() (string, error) {
 		}
 	}
 	seq.HasPosition.Update(b.Len())
-	return strings.TrimRight(b.String(), "\n"), seq.runeSeq.Err()
+	// Remove the '\n'. Technically this removes all trailing '\n's but since we stop at '\n' that's not a concern.
+	str := strings.TrimRight(b.String(), "\n")
+	return str, seq.runeSeq.Err()
 }
 
 type RandomLineSeq struct {
