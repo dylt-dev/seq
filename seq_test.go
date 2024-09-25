@@ -15,18 +15,6 @@ import (
 //go:embed iter-test-0.txt
 var TS0 string
 
-func TestSimpleRacer(t *testing.T) {
-	speed := float32(2.27)
-	racer := NewSimpleRacer(speed)
-	for i, dx := range IterWithIndex(racer) {
-		t.Logf("%f", dx)
-		time.Sleep(10 * time.Millisecond)
-		if i >= 10 {
-			break
-		}
-	}
-}
-
 func TestLimitNextThorough(t *testing.T) {
 	var err error
 	rd, err := os.Open("./petnames.txt")

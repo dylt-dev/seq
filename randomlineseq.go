@@ -2,6 +2,14 @@ package seq
 
 import "io"
 
+// Seq for getting a random line from a file, without duplicates.
+// 
+// An internal FiniteLineCollection is used as the source of data. In general 
+// random selection involves a fixed number of choices -- drawing one or more
+// cards, rolling dice, picking names out of a hat, playing bingo, etc. 
+// It's possible for a user to want a choice from an unbounded data source,
+// but this necessarily means specifying a bound on the number of elements you
+// want to consider, and choosing from among those elements.
 type RandomLineSeq struct {
 	*HasErr
 	flc  FiniteLineCollection
