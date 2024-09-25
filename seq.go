@@ -413,6 +413,10 @@ func (sq *seqLimit[T]) Next() (T, error) {
 	if sq.i < sq.limit {
 		sq.i++
 		tInner, errInner := sq.sqInner.Next()
+		// If this is the last iteration, explcitly set err to EOF
+		if errInner == nil && sq.i == sq.limit {
+			errInner = io.EOF
+		}
 		sq.lastErr = errInner
 		return tInner, errInner
 	}
