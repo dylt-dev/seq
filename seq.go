@@ -1,7 +1,7 @@
 /* Package `seq` implements useful features for dealing with sequences of data. seq was Originally created
  * to make simplify creating Go Iterators, but it's grown a bit to provide stream-like features that are
  * familiar to other languages.
-*/
+ */
 package seq
 
 import (
@@ -9,7 +9,6 @@ import (
 	"errors"
 	"io"
 	"math/rand/v2"
-	"strings"
 )
 
 // 'loop function' for 0-arg for loops (`for range iter`)
@@ -152,165 +151,6 @@ func Count[T comparable](seq Seq[T]) (int, error) {
 }
 
 
-// Seq for expressing a file as a sequence of runes. The Seq that started it all!
-// A bufio.Reader() serves as the underlying data source. bufio.Reader.ReadRune() does
-// most of the heavy lifting.
-//
-// Runes can be more than one character, so when ReadRune() returns a rune, it also returns
-// the number of bytes in the rune. Using an iterator, this information would be lost. So RuneSeq
-// makes it available via the `LastSize()` method.
-type RuneSeq struct {
-	*HasErr
-	*HasIter[rune]
-	*HasPosition
-	rd       io.Reader
-	brd      bufio.Reader
-	lastSize int
-}
-
-// C'tor function
-func NewRuneSeq(rd io.Reader) *RuneSeq {
-	sq := &RuneSeq{
-		HasErr:      NewHasErr(),
-		HasPosition: NewHasPosition(),
-		rd:          rd,
-		brd:         *bufio.NewReaderSize(rd, 16),
-		lastSize:    0,
-	}
-	// HasIter needs the Seq object so it needs special treatment
-	sq.HasIter = NewHasIter(sq)
-	return sq
-}
-
-// Return the next rune in the sequence.
-// Extra fields: last error, last/current position, last rune size in bytes
-// ReadRune() returns (0, io.EOF) upon exhaustion, so Next() doesn't have to do
-// anything special to detect when there's more data. ReadRune() handles it.
-func (seq *RuneSeq) Next() (rune, error) {
-	ru, size, err := seq.brd.ReadRune()
-	seq.lastSize = size
-	seq.lastErr = err
-	seq.HasPosition.Update(size)
-	return ru, err
-}
-
-
-// Seq for consuming a Reader line by line
-//
-// Add-ons: HasErr, HasIter, HasPosition
-//
-// LineSeq uses a RuneSeq internally to consume a Reader rune-by-rune in order to form lines.
-// The main reason for this was simply to indirectly test RuneSeq. A nice side effect is that
-// using RuneSeq and building lines ourselves is potentially less memory-intensive than using
-// bufio.ReadString('\n'), since the latter creates internal buffers of a size we can't control.
-// This is unlikely to be that big a deal in reality, but it's nice to know.
-type LineSeq struct {
-	*HasErr
-	*HasIter[string]
-	*HasPosition
-	rd      io.Reader
-	runeSeq *RuneSeq
-}
-
-// C'tor last function
-func NewLineSeq(rd io.Reader) *LineSeq {
-	var sq *LineSeq = &LineSeq{
-		HasErr:      NewHasErr(),
-		HasPosition: NewHasPosition(),
-		rd:          rd,
-		runeSeq:     NewRuneSeq(rd),
-	}
-	// HasIter needs the Seq object so it needs special treatment
-	sq.HasIter = NewHasIter(sq)
-	return sq
-}
-
-// LineSeq delegates its actual reading to RuneSeq, so Err() delegates and
-// returns the last RuneSeq error. (@todo maybe we can/should drop *HasErr?)
-func (seq *LineSeq) Err() error {
-	return seq.runeSeq.Err()
-}
-
-// Read runes until '\n' or EOF is reached.
-//
-// After EOF is reached, all further calls to Next() will return ("", io.EOF)
-func (seq *LineSeq) Next() (string, error) {
-	b := strings.Builder{}
-	for ru := range Iter(seq.runeSeq) {
-		// Make sure that the RuneSeq actually read something
-		if seq.runeSeq.lastSize > 0 {
-			b.WriteRune(ru)
-		}
-		// Terminate either on '\n' or EOF. This correctly files that don't end in '\n'.
-		if ru == '\n' || errors.Is(seq.runeSeq.Err(), io.EOF) {
-			break
-		}
-		if seq.runeSeq.Err() != nil {
-			return "", seq.runeSeq.Err()
-		}
-	}
-	// A string was succesfully read, so update the position variables
-	seq.HasPosition.Update(b.Len())
-	// Remove the '\n'. Technically this removes all trailing '\n's but since we stop at '\n' that's not a concern.
-	str := strings.TrimRight(b.String(), "\n")
-	return str, seq.runeSeq.Err()
-}
-
-type RandomLineSeq struct {
-	*HasErr
-	flc  FiniteLineCollection
-	used map[string]struct{}
-	shoe int
-}
-
-func NewRng() *rand.Rand {
-	// t0 := uint64(time.Now().UnixNano())
-	// t1 := uint64(time.Now().UnixNano())
-	// src := rand.NewPCG(t0, t1)
-	src := rand.NewPCG(rand.Uint64(), rand.Uint64())
-	return rand.New(src)
-}
-
-func NewRandomLineSeq(flc FiniteLineCollection, shoe int) *RandomLineSeq {
-	return &RandomLineSeq{
-		NewHasErr(),
-		flc,
-		map[string]struct{}{},
-		shoe,
-	}
-}
-
-// func (seq *RandomLineSeq) Err() error {
-// 	return seq.lastErr
-// }
-
-func (seq *RandomLineSeq) Next() (string, error) {
-	flc := seq.flc
-	n, err := flc.Count()
-	if err != nil {
-		return "", err
-	}
-	for {
-		if seq.shoe+len(seq.used) >= n {
-			return "", io.EOF
-		}
-		line, err := GetRandomLine(flc)
-		if err != nil {
-			seq.lastErr = err
-			return "", err
-		}
-		_, hasKey := seq.used[line]
-		if !hasKey {
-			seq.used[line] = struct{}{}
-			return line, nil
-		}
-	}
-}
-
-// func (seq *RandomLineSeq) Iter() RangeFunc1[string] {
-// 	return CreateIterFromNext1(seq.Next)
-// }
-
 type SimpleRacer struct {
 	HasErr
 	speed float32
@@ -324,40 +164,6 @@ func (racer *SimpleRacer) Next() (float32, error) {
 	racer.lastErr = nil
 	return racer.speed, racer.lastErr
 }
-
-// func CreateIterFromNext0(nextFunc NextFunc0) IterFunc0 {
-// 	return func(loopFunc LoopFunc0) {
-// 		for {
-// 			err := nextFunc()
-// 			if !loopFunc() || err != nil {
-// 				break
-// 			}
-// 		}
-// 	}
-// }
-
-// func CreateIterFromNext1[T any](nextFunc NextFunc1[T]) IterFunc1[T] {
-// 	return func(loopFunc LoopFunc1[T]) {
-// 		for {
-// 			t, err := nextFunc()
-// 			if !loopFunc(t) || err != nil {
-// 				break
-// 			}
-// 		}
-// 	}
-// }
-
-// func CreateIterFromNext2[T any](nextFunc NextFunc2[T]) IterFunc2[T] {
-// 	fn := func(loopFunc LoopFunc2[T]) {
-// 		for {
-// 			int, string, err := nextFunc()
-// 			if !loopFunc(int, string) || err != nil {
-// 				break
-// 			}
-// 		}
-// 	}
-// 	return fn
-// }
 
 func IterNoArg[T comparable](seq Seq[T]) IterFunc0 {
 	return func(loopFunc LoopFunc0) {
