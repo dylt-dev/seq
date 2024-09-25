@@ -1,7 +1,7 @@
 /* Package `seq` implements useful features for dealing with sequences of data. seq was Originally created
  * to make simplify creating Go Iterators, but it's grown a bit to provide stream-like features that are
  * familiar to other languages.
- */
+*/
 package seq
 
 import (
@@ -12,11 +12,17 @@ import (
 	"strings"
 )
 
+// 'loop function' for 0-arg for loops (`for range iter`)
 type LoopFunc0 func() bool
+// 'loop function' for 1-arg for loops (`for el := range iter')
 type LoopFunc1[T comparable] func(arg T) bool
+// 'loop function' for 2-arg for loops (`for idx, el := range iter`)
 type LoopFunc2[T comparable] func(i int, arg T) bool
+// iterator for 0-arg for loops
 type IterFunc0 func(loopFunc LoopFunc0)
+// iterator for 1-arg for loops
 type IterFunc1[T comparable] func(loopFunc LoopFunc1[T])
+// iterator for 2 arg for loops
 type IterFunc2[T comparable] func(loopFunc LoopFunc2[T])
 type NextFunc0 func() error
 type NextFunc1[T comparable] func() (T, error)
@@ -39,7 +45,8 @@ type NextFunc2[T comparable] func() (int, T, error)
 // custom properties as needed. The only requirement is that the struct's Seq.Next()` method updates those custom 
 // properties as appropriate.
 type Seq[T comparable] interface {
-	Next() (T, error)	// Get tne next element in the sequence, and an error or nil
+	// Get the next element in the sequence, and an error or nil
+	Next() (T, error)
 }
 
 // Seq Add-on for tracking the last error received by `Next()`. Can be used to check if the Seq completed normally (io.EOF),
@@ -50,10 +57,12 @@ type HasErr struct {
 	lastErr error
 }
 
+// C'tor function
 func NewHasErr() *HasErr {
 	return &HasErr{lastErr: nil}
 }
 
+// Return the last error
 func (o *HasErr) Err() error {
 	return o.lastErr
 }
@@ -106,20 +115,27 @@ func NewHasPosition() *HasPosition {
 	return &HasPosition{lastPos: 0, pos: 0}
 }
 
+// Position of last returned element
 func (o *HasPosition) LastPosition() int {
 	return o.lastPos
 }
 
+// Position of next element
 func (o *HasPosition) Position() int {
 	return o.pos
 }
 
+// Rotate Position to LastPosition, increment new position by n, and return the previous position
 func (o *HasPosition) Update(n int) int {
 	o.lastPos = o.pos
 	o.pos += n
 	return o.pos
 }
 
+// Next() through the entire sequence until exhaustion to count the number of elements
+//
+// Warning 1 - Depending on the underlying datasource, this might consume and discard data that you did not want consumed and discarded. For data structures and local files, this is probably ok. For remote data and service resposnes, this could be a problem.
+// Warninf 2 - Not all sequences end. Some might be an infinite sequence of data. If so, Count() will not terminate.
 func Count[T comparable](seq Seq[T]) (int, error) {
 	var err error
 	var n int
@@ -135,24 +151,41 @@ func Count[T comparable](seq Seq[T]) (int, error) {
 	return n, err
 }
 
+
+// Seq for expressing a file as a sequence of runes. The Seq that started it all!
+// A bufio.Reader() serves as the underlying data source. bufio.Reader.ReadRune() does
+// most of the heavy lifting.
+//
+// Runes can be more than one character, so when ReadRune() returns a rune, it also returns
+// the number of bytes in the rune. Using an iterator, this information would be lost. So RuneSeq
+// makes it available via the `LastSize()` method.
 type RuneSeq struct {
 	*HasErr
+	*HasIter[rune]
 	*HasPosition
 	rd       io.Reader
 	brd      bufio.Reader
 	lastSize int
 }
 
+// C'tor function
 func NewRuneSeq(rd io.Reader) *RuneSeq {
-	return &RuneSeq{
+	sq := &RuneSeq{
 		HasErr:      NewHasErr(),
 		HasPosition: NewHasPosition(),
 		rd:          rd,
 		brd:         *bufio.NewReaderSize(rd, 16),
 		lastSize:    0,
 	}
+	// HasIter needs the Seq object so it needs special treatment
+	sq.HasIter = NewHasIter(sq)
+	return sq
 }
 
+// Return the next rune in the sequence.
+// Extra fields: last error, last/current position, last rune size in bytes
+// ReadRune() returns (0, io.EOF) upon exhaustion, so Next() doesn't have to do
+// anything special to detect when there's more data. ReadRune() handles it.
 func (seq *RuneSeq) Next() (rune, error) {
 	ru, size, err := seq.brd.ReadRune()
 	seq.lastSize = size
@@ -161,6 +194,16 @@ func (seq *RuneSeq) Next() (rune, error) {
 	return ru, err
 }
 
+
+// Seq for consuming a Reader line by line
+//
+// Add-ons: HasErr, HasIter, HasPosition
+//
+// LineSeq uses a RuneSeq internally to consume a Reader rune-by-rune in order to form lines.
+// The main reason for this was simply to indirectly test RuneSeq. A nice side effect is that
+// using RuneSeq and building lines ourselves is potentially less memory-intensive than using
+// bufio.ReadString('\n'), since the latter creates internal buffers of a size we can't control.
+// This is unlikely to be that big a deal in reality, but it's nice to know.
 type LineSeq struct {
 	*HasErr
 	*HasIter[string]
@@ -169,6 +212,7 @@ type LineSeq struct {
 	runeSeq *RuneSeq
 }
 
+// C'tor last function
 func NewLineSeq(rd io.Reader) *LineSeq {
 	var sq *LineSeq = &LineSeq{
 		HasErr:      NewHasErr(),
@@ -181,16 +225,23 @@ func NewLineSeq(rd io.Reader) *LineSeq {
 	return sq
 }
 
+// LineSeq delegates its actual reading to RuneSeq, so Err() delegates and
+// returns the last RuneSeq error. (@todo maybe we can/should drop *HasErr?)
 func (seq *LineSeq) Err() error {
 	return seq.runeSeq.Err()
 }
 
+// Read runes until '\n' or EOF is reached.
+//
+// After EOF is reached, all further calls to Next() will return ("", io.EOF)
 func (seq *LineSeq) Next() (string, error) {
 	b := strings.Builder{}
 	for ru := range Iter(seq.runeSeq) {
+		// Make sure that the RuneSeq actually read something
 		if seq.runeSeq.lastSize > 0 {
 			b.WriteRune(ru)
 		}
+		// Terminate either on '\n' or EOF. This correctly files that don't end in '\n'.
 		if ru == '\n' || errors.Is(seq.runeSeq.Err(), io.EOF) {
 			break
 		}
@@ -198,6 +249,7 @@ func (seq *LineSeq) Next() (string, error) {
 			return "", seq.runeSeq.Err()
 		}
 	}
+	// A string was succesfully read, so update the position variables
 	seq.HasPosition.Update(b.Len())
 	// Remove the '\n'. Technically this removes all trailing '\n's but since we stop at '\n' that's not a concern.
 	str := strings.TrimRight(b.String(), "\n")
