@@ -7,7 +7,6 @@ package seq
 import (
 	"bufio"
 	"errors"
-	"fmt"
 	"io"
 	"math/rand/v2"
 	"strings"
@@ -415,14 +414,12 @@ func NewSeqSkipWrapper[T comparable](sqInner Seq[T], toSkip int) *seqSkip[T] {
 }
 
 func (sq *seqSkip[T]) Next() (T, error) {
-	fmt.Println("In seqSkip.Next() ...")
 	//  On first call to Next() we do our skip step
 	if !sq.isSkipped {
 		sq.isSkipped = true
 		// skip step: Skip over the specified # of elements
 		for range sq.toSkip {
-			val, err := sq.sqInner.Next()
-			fmt.Printf("In skippy loop: val=%v err=%v\n", val, err)
+			_, err := sq.sqInner.Next()
 			// If there's an error during the skip step, terminate early
 			if err != nil {
 				sq.lastErr = err
@@ -432,7 +429,6 @@ func (sq *seqSkip[T]) Next() (T, error) {
 	}
 	// We've done the skip step, so now we just delegate to sqInner.Next()
 	val, err := sq.sqInner.Next()
-	fmt.Printf("In normaltown: val=%v err=%v\n", val, err)
 	sq.lastErr = err
 	return val, err
 }
