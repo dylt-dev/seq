@@ -20,6 +20,12 @@ func (o *HasErr) Err() error {
 	return o.lastErr
 }
 
+// Set the last error
+func (o *HasErr) SetErr (err error) *HasErr {
+	o.lastErr = err
+	return o
+}
+
 // Seq Add-on to use Iter(), IterWithIndex(), and IterNoArg() as methods, instead of global functions.
 // HasIter's sq field typically represnts the Seq that embeds HasIter. This means Seq's embedding HasIter
 // cannot initialize HasIter when the Seq is initialized, beause the Seq doesn't exist yet. Instead, create

@@ -66,21 +66,6 @@ func Count[T comparable](seq Seq[T]) (int, error) {
 	return n, err
 }
 
-
-type SimpleRacer struct {
-	HasErr
-	speed float32
-}
-
-func NewSimpleRacer(speed float32) *SimpleRacer {
-	return &SimpleRacer{speed: speed, HasErr: HasErr{lastErr: nil}}
-}
-
-func (racer *SimpleRacer) Next() (float32, error) {
-	racer.lastErr = nil
-	return racer.speed, racer.lastErr
-}
-
 func IterNoArg[T comparable](seq Seq[T]) IterFunc0 {
 	return func(loopFunc LoopFunc0) {
 		for {
