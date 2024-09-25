@@ -382,7 +382,7 @@ func Iter[T comparable](seq Seq[T]) IterFunc1[T] {
 		*/
 		for {
 			t, err := seq.Next()
-			if (t == *new(T) && err != nil) || !loopFunc(t) {
+			if (t == *new(T) && err != nil) || !loopFunc(t) || err != nil {
 				break
 			}
 		}
