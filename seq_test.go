@@ -3,7 +3,6 @@ package seq
 import (
 	_ "embed"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -19,19 +18,21 @@ var TS0 string
 func TestRuneSeq0(t *testing.T) {
 	str := TS0
 	sr := strings.NewReader(str)
-	seq := NewRuneSeq(sr)
-	for _, ru := range IterWithIndex(seq) {
-		fmt.Printf("ru=%c\n", ru)
+	sq := NewRuneSeq(sr)
+	for i, ru := range IterWithIndex(sq) {
+		t.Logf("i=%d ru=%c\n", i, ru)
 	}
+	testEof(t, sq)
 }
 
 func TestRuneSeqCount(t *testing.T) {
 	str := TS0
 	sr := strings.NewReader(str)
-	seq := NewRuneSeq(sr)
-	n, err := Count(seq)
+	sq := NewRuneSeq(sr)
+	n, err := Count(sq)
 	assert.Equal(t, len(str), n)
 	assert.Nil(t, err)
+	testEof(t, sq)
 }
 
 func TestLineSeqNext(t *testing.T) {
@@ -70,47 +71,49 @@ func TestLineSeqNext13(t *testing.T) {
 func TestLineSeqThorough(t *testing.T) {
 	str := "one\ntwo\nthree\n"
 	rd := strings.NewReader(str)
-	seq := NewLineSeq(rd)
+	sq := NewLineSeq(rd)
 	var line string
 	var err error
 	// one
-	line, err = seq.Next()
+	line, err = sq.Next()
 	assert.Nil(t, err)
-	assert.Nil(t, seq.Err())
+	assert.Nil(t, sq.Err())
 	assert.Equal(t, "one", line)
-	assert.Equal(t, 0, seq.LastPosition())
-	assert.Equal(t, 4, seq.Position())
+	assert.Equal(t, 0, sq.LastPosition())
+	assert.Equal(t, 4, sq.Position())
 	// two
-	line, err = seq.Next()
+	line, err = sq.Next()
 	assert.Nil(t, err)
-	assert.Nil(t, seq.Err())
+	assert.Nil(t, sq.Err())
 	assert.Equal(t, "two", line)
-	assert.Equal(t, 4, seq.LastPosition())
-	assert.Equal(t, 8, seq.Position())
+	assert.Equal(t, 4, sq.LastPosition())
+	assert.Equal(t, 8, sq.Position())
 	// three
-	line, err = seq.Next()
+	line, err = sq.Next()
 	assert.Nil(t, err)
-	assert.Nil(t, seq.Err())
+	assert.Nil(t, sq.Err())
 	assert.Equal(t, "three", line)
-	assert.Equal(t, 8, seq.LastPosition())
-	assert.Equal(t, 14, seq.Position())
+	assert.Equal(t, 8, sq.LastPosition())
+	assert.Equal(t, 14, sq.Position())
 	// EOF
-	line, err = seq.Next()
+	line, err = sq.Next()
 	assert.True(t, errors.Is(err, io.EOF))
-	assert.True(t, errors.Is(seq.Err(), io.EOF))
+	assert.True(t, errors.Is(sq.Err(), io.EOF))
 	assert.Equal(t, "", line)
-	assert.Equal(t, 14, seq.LastPosition())
-	assert.Equal(t, 14, seq.Position())
+	assert.Equal(t, 14, sq.LastPosition())
+	assert.Equal(t, 14, sq.Position())
+	// Confirm EOF
+	testEof(t, sq)
 }
 
 func TestLineSeqCount(t *testing.T) {
 	f, err := os.Open("./petnames.txt")
 	assert.Nil(t, err)
-	lineSeq := NewLineSeq(f)
-	n, err := Count(lineSeq)
+	sq := NewLineSeq(f)
+	n, err := Count(sq)
 	assert.Nil(t, err)
 	assert.Equal(t, 1000, n)
-
+	testEof(t, sq)
 }
 
 func TestSimpleRacer(t *testing.T) {
@@ -118,8 +121,8 @@ func TestSimpleRacer(t *testing.T) {
 	racer := NewSimpleRacer(speed)
 	for i, dx := range IterWithIndex(racer) {
 		t.Logf("%f", dx)
-		time.Sleep(100 * time.Millisecond)
-		if i >= 100 {
+		time.Sleep(10 * time.Millisecond)
+		if i >= 10 {
 			break
 		}
 	}
@@ -133,7 +136,7 @@ func TestLimitNextThorough(t *testing.T) {
 	}
 	petNamesSeq := NewLineSeq(rd)
 	// names := []string{}
-	newSeq := Limit(petNamesSeq, 5)
+	var newSeq *seqLimit[string] = Limit(petNamesSeq, 5)
 	var name, expected string
 	// 0: "AJ"
 	expected = "AJ"
@@ -159,35 +162,9 @@ func TestLimitNextThorough(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotEmpty(t, name)
 	assert.Equal(t, expected, name)
-	// 4: "Abigail"
-	expected = "Abigail"
+	// 4: "Abigail", EOF
 	name, err = newSeq.Next()
-	assert.Nil(t, err)
-	assert.NotEmpty(t, name)
-	assert.Equal(t, expected, name)
-	// 5: "", ni
-	expected = ""
-	name, err = newSeq.Next()
-	assert.NotNil(t, err)
-	assert.True(t, errors.Is(err, io.EOF))
-	assert.Empty(t, name)
-
-	// for name := range Iter1(Limit(petNamesSeq, 5)) {
-	// 	// Sequences let you check if the previous read actually resulted in an error, like EOF
-	// 	if petNamesSeq.Err() == nil {
-	// 		fmt.Printf("name=%s\n", name)
-	// 		names = append(names, name)
-	// 	} else {
-	// 		// EOFs are ok. Other errors are terrifying.
-	// 		if errors.Is(petNamesSeq.Err(), io.EOF) {
-	// 			fmt.Println("Normal EOF reached. All is well.")
-	// 		} else {
-	// 			fmt.Printf("%v\n", err)
-	// 			panic("Unepxected error!")
-	// 		}
-	// 	}
-	// }
-	// fmt.Printf("%d name(s) in the array\n", len(names))
+	testNext(t, "Abigail", name, io.EOF, err)
 }
 
 func TestLimitWithIter(t *testing.T) {
@@ -196,20 +173,18 @@ func TestLimitWithIter(t *testing.T) {
 	if err != nil {
 		panic("Unable to open petnames file")
 	}
-	petNamesSeq := NewLineSeq(rd)
-	newSeq := Limit(petNamesSeq, 5)
+	var sq Seq[string] = NewLineSeq(rd)
+	var sqLimit *seqLimit[string] = Limit(sq, 5)
 	expectedNames := []string{"AJ", "Abbey", "Abbie", "Abel", "Abigail"}
-	var (
-		i    int
-		name string
-	)
-	for i, name = range IterWithIndex(newSeq) {
+	var (i int; name string)
+	for i, name = range IterWithIndex(sqLimit) {
 		expected := expectedNames[i]
 		assert.Equal(t, expected, name)
 	}
 	assert.Equal(t, 4, i)
-	assert.True(t, errors.Is(newSeq.Err(), io.EOF))
-	assert.Nil(nil, petNamesSeq.lastErr)
+	assert.True(t, errors.Is(sqLimit.Err(), io.EOF))
+	// EOF
+	testEof(t, sqLimit)
 }
 
 func TestSkipSimple(t *testing.T) {
@@ -217,10 +192,18 @@ func TestSkipSimple(t *testing.T) {
 	rd := strings.NewReader(strs)
 	var sq Seq[string] = NewLineSeq(rd)
 	sq = Skip(sq, 1)
-	val, err := sq.Next()
-	t.Logf("val=%v, err=%v\n", val, err)
-	assert.Nil(t, err)
-	assert.Equal(t, "bar", val)
+	var (val string; err error)
+	// bar
+	val, err = sq.Next()
+	testNextOk(t, "bar", val, err)
+	// bum
+	val, err = sq.Next()
+	testNextOk(t, "bum", val, err)
+	// "", EOF
+	val, err = sq.Next()
+	testNextEof(t, val, err)
+	// Confirm EOF
+	testEof(t, sq)
 }
 
 func TestWhereNextThorough(t *testing.T) {
@@ -229,31 +212,27 @@ func TestWhereNextThorough(t *testing.T) {
 	if err != nil {
 		panic("Unable to open petnames file")
 	}
-	petNamesSeq := NewLineSeq(rd)
+	sq := NewLineSeq(rd)
 	filter := func(str string) bool { return strings.HasPrefix(str, "Ab") }
-	newSeq := Where(petNamesSeq, filter)
+	sqWhere := Where(sq, filter)
 	var name string
 	// Abbey
-	name, err = newSeq.Next()
-	testWhere(t, "Abbey", name, nil, err)
+	name, err = sqWhere.Next()
+	testNext(t, "Abbey", name, nil, err)
 	// Abbie
-	name, err = newSeq.Next()
-	testWhere(t, "Abbie", name, nil, err)
+	name, err = sqWhere.Next()
+	testNext(t, "Abbie", name, nil, err)
 	// Abel
-	name, err = newSeq.Next()
-	testWhere(t, "Abel", name, nil, err)
+	name, err = sqWhere.Next()
+	testNext(t, "Abel", name, nil, err)
 	// Abigail
-	name, err = newSeq.Next()
-	testWhere(t, "Abigail", name, nil, err)
+	name, err = sqWhere.Next()
+	testNext(t, "Abigail", name, nil, err)
 	// "", EOF
-	name, err = newSeq.Next()
-	testWhere(t, "", name, io.EOF, err)
-}
-
-func testWhere(t *testing.T, valExpected, val string, errExpected, err error) {
-	t.Logf("name=%v err=%v\n", val, err)
-	assert.Equal(t, errExpected, err)
-	assert.Equal(t, valExpected, val)
+	name, err = sqWhere.Next()
+	testNext(t, "", name, io.EOF, err)
+	// Confirm EOF
+	testEof(t, sqWhere)
 }
 
 func TestLimitAndWhereNextThorough(t *testing.T) {
@@ -261,20 +240,19 @@ func TestLimitAndWhereNextThorough(t *testing.T) {
 	if err != nil {
 		panic("Unable to open petnames file")
 	}
-	petNamesSeq := NewLineSeq(rd)
+	sq := NewLineSeq(rd)
 	filter := func(str string) bool { return strings.HasPrefix(str, "Ab") }
-	newSeq := Where(petNamesSeq, filter)
-	newerSeq := Limit(newSeq, 2)
+	sqWhere := Where(sq, filter)
+	sqLimit := Limit(sqWhere, 2)
 	var name string
 	// Abbey
-	name, err = newerSeq.Next()
-	testWhere(t, "Abbey", name, nil, err)
-	// Abbie
-	name, err = newerSeq.Next()
-	testWhere(t, "Abbie", name, nil, err)
-	// "", EOF
-	name, err = newerSeq.Next()
-	testWhere(t, "", name, io.EOF, err)
+	name, err = sqLimit.Next()
+	testNext(t, "Abbey", name, nil, err)
+	// Abbie, EOF
+	name, err = sqLimit.Next()
+	testNext(t, "Abbie", name, io.EOF, err)
+	// Confirm EOF
+	testEof(t, sqLimit)
 }
 
 func TestWhereSkipLimit(t *testing.T) {
@@ -288,12 +266,38 @@ func TestWhereSkipLimit(t *testing.T) {
 	sqSkip := Skip(sqWhere, 3)
 	sqLimit := Limit(sqSkip, 1)
 	var name string
-	// Abigail
+	// Abigail, EOF
 	name, err = sqLimit.Next()
 	t.Logf("name=%v err=%v\n", name, err)
-	testWhere(t, "Abigail", name, nil, err)
+	testNext(t, "Abigail", name, io.EOF, err)
 	// "", EOF
 	name, err = sqLimit.Next()
 	t.Logf("name=%v err=%v\n", name, err)
-	testWhere(t, "Abigail", name, io.EOF, err)
+	testNextEof(t, name, err)
+	// Confirm EOF
+	testEof(t, sqLimit)
+}
+
+
+func testEof[U comparable] (t *testing.T, sq Seq[U]) {
+	var (val U; err error)
+	val, err = sq.Next()
+	t.Logf("name=%v err=%v\n", val, err)
+	assert.Equal(t, *new(U), val)
+	assert.True(t, errors.Is(err, io.EOF))
+}
+
+
+func testNext[U comparable](t *testing.T, valExpected, val U, errExpected, err error) {
+	t.Logf("name=%v err=%v\n", val, err)
+	assert.Equal(t, errExpected, err)
+	assert.Equal(t, valExpected, val)
+}
+
+func testNextEof[U comparable](t *testing.T, val U, err error) {
+	testNext(t, *new(U), val, io.EOF, err)
+}
+
+func testNextOk[U comparable](t *testing.T, valExpected, val U, err error) {
+	testNext(t, valExpected, val, nil, err)
 }
