@@ -474,6 +474,7 @@ func (sq *seqSkip[T]) Next() (T, error) {
 		// skip step: Skip over the specified # of elements
 		for range sq.toSkip {
 			_, err := sq.sqInner.Next()
+			// If there's an error during the skip step, terminate early
 			if err != nil {
 				sq.lastErr = err
 				return *new(T), err
