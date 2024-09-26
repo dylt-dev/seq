@@ -4,7 +4,7 @@ import (
 	"errors"
 )
 
-var MapFull error = errors.New("MapFull")
+var ErrMapFull error = errors.New("ErrMapFull")
 
 type HasBurnMap[T comparable] struct {
 	burned map[T]struct{}
@@ -32,7 +32,7 @@ func (o *HasBurnMap[T]) AddFromSeq (sq Seq[T]) (T, error) {
 		}
 	}
 	if o.IsFull() {
-		err = MapFull
+		err = ErrMapFull
 	}
 	return val, err
 }
