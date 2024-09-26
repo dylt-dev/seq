@@ -213,6 +213,10 @@ func newArraySeq[T comparable] (data []T) *arraySeq[T] {
 	return &arraySeq[T]{data, 0}
 }
 
+func (sq *arraySeq[T]) Count () int {
+	return len(sq.data)
+}
+
 func (sq *arraySeq[T]) Next () (val T, err error) {
 	if sq.i < len(sq.data) {
 		val = sq.data[sq.i]
@@ -226,7 +230,8 @@ func (sq *arraySeq[T]) Next () (val T, err error) {
 }
 
 func TestArraySeq (t *testing.T) {
-	var sq Seq[int] = newArraySeq([]int{2, 4, 3, 5, 1})
+	var sq *arraySeq[int] = newArraySeq[int]([]int{2, 4, 3, 5, 1})
+	assert.Equal(t, 5, sq.Count())
 	var (val int; err error)
 	val, err = sq.Next()
 	assert.Nil(t, err)
