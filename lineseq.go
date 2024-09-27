@@ -16,7 +16,7 @@ import (
 // bufio.ReadString('\n'), since the latter creates internal buffers of a size we can't control.
 // This is unlikely to be that big a deal in reality, but it's nice to know.
 type LineSeq struct {
-	*HasErr
+	*HasErr[string]
 	*HasIter[string]
 	*HasPosition
 	rd      io.Reader
@@ -26,12 +26,12 @@ type LineSeq struct {
 // C'tor last function
 func NewLineSeq(rd io.Reader) *LineSeq {
 	var sq *LineSeq = &LineSeq{
-		HasErr:      NewHasErr(),
 		HasPosition: NewHasPosition(),
 		rd:          rd,
 		runeSeq:     NewRuneSeq(rd),
 	}
 	// HasIter needs the Seq object so it needs special treatment
+	sq.HasErr = NewHasErr(sq)
 	sq.HasIter = NewHasIter(sq)
 	return sq
 }

@@ -1,29 +1,66 @@
 package seq
 
 import (
+	"errors"
+	"io"
 )
+
+// Seq Add-on for returning the Count() of the sequence.
+// This implementation is naive. It simple Nexts() all the way to the end
+// of the sequence. Not only is that potentially slow, but it consumes the
+// entire sequence. For some sequences that's fine. For others, it will be
+// better to skip this Add-on and code a Seq-specific Count().
+//
+// Implements: FiniteSeq
+type HasCount[T comparable] struct {
+	sq FiniteSeq[T]
+}
+
+func NewHasCount[T comparable] (sq FiniteSeq[T]) *HasCount[T] {
+	return &HasCount[T]{sq}
+}
+
+func (o *HasCount[T]) Count () int {
+	var (i int=0; val T; err error)
+	for {
+		val, err = o.sq.Next()
+		if val != *new(T) {
+			i++
+		}
+		if err != nil {
+			break
+		} 
+	}
+	if errors.Is(err, io.EOF) {
+		err = nil
+	}
+	o.sq.SetErr(err)
+	return i
+}
+
 // Seq Add-on for tracking the last error received by `Next()`. Can be used to check if the Seq completed normally (io.EOF),
 // or if some other error happened.
 // Proper usage requires including HasErr or *HasErr as an embedded field, and then making sure Next() updates lastErr with
 // any errors that occur or nil if Next() executes successfully.
-type HasErr struct {
+type HasErr[T comparable] struct {
+	sq SeqWithErr[T]
 	lastErr error
 }
 
 // C'tor function
-func NewHasErr() *HasErr {
-	return &HasErr{lastErr: nil}
+func NewHasErr[T comparable](sq SeqWithErr[T]) *HasErr[T] {
+	return &HasErr[T]{sq: sq, lastErr: nil}
 }
 
 // Return the last error
-func (o *HasErr) Err() error {
+func (o *HasErr[T]) Err() error {
 	return o.lastErr
 }
 
 // Set the last error
-func (o *HasErr) SetErr (err error) *HasErr {
+func (o *HasErr[T]) SetErr (err error) SeqWithErr[T] {
 	o.lastErr = err
-	return o
+	return o.sq
 }
 
 // Seq Add-on to use Iter(), IterWithIndex(), and IterNoArg() as methods, instead of global functions.

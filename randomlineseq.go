@@ -3,19 +3,20 @@ package seq
 import "io"
 
 type RandomLineSeq struct {
-	*HasErr
+	*HasErr[string]
 	flc  FiniteLineCollection
 	used map[string]struct{}
 	shoe int
 }
 
 func NewRandomLineSeq(flc FiniteLineCollection, shoe int) *RandomLineSeq {
-	return &RandomLineSeq{
-		NewHasErr(),
-		flc,
-		map[string]struct{}{},
-		shoe,
+	var sq *RandomLineSeq = &RandomLineSeq{
+		flc: flc,
+		used: map[string]struct{}{},
+		shoe: shoe,
 	}
+	sq.HasErr = NewHasErr(sq)
+	return sq
 }
 
 func (seq *RandomLineSeq) Next() (string, error) {

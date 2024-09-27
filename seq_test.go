@@ -205,16 +205,31 @@ func testNextOk[U comparable](t *testing.T, valExpected, val U, err error) {
 
 // This type doesn't have much of a purpose outside of testing
 type arraySeq[T comparable] struct {
+	*HasCount[T]
+	*HasErr[T]
+	*HasIter[T]
 	data []T
 	i int
 }
 
 func newArraySeq[T comparable] (data []T) *arraySeq[T] {
-	return &arraySeq[T]{data, 0}
+	var sq *arraySeq[T] = &arraySeq[T]{
+		data: data,
+		i: 0,
+	}
+	sq.HasErr = NewHasErr(sq)
+	sq.HasCount = NewHasCount(sq)
+	sq.HasIter = NewHasIter(sq)
+	return sq
 }
 
-func (sq *arraySeq[T]) Count () int {
-	return len(sq.data)
+var ErrIndexOutOfBounds error = errors.New("ErrIndexOutOfBounds")
+
+func (sq *arraySeq[T]) Get (i int) (T, error) {
+	if i >= len(sq.data) {
+		return *new(T), ErrIndexOutOfBounds
+	} 
+	return sq.data[i], nil
 }
 
 func (sq *arraySeq[T]) Next () (val T, err error) {
@@ -229,9 +244,13 @@ func (sq *arraySeq[T]) Next () (val T, err error) {
 	return
 }
 
-func TestArraySeq (t *testing.T) {
+func (sq *arraySeq[T]) Reset () (FiniteSeq[T], error)  {
+	sq.i = 0
+	return sq, nil
+}
+
+func TestArraySeqNextThorough (t *testing.T) {
 	var sq *arraySeq[int] = newArraySeq[int]([]int{2, 4, 3, 5, 1})
-	assert.Equal(t, 5, sq.Count())
 	var (val int; err error)
 	val, err = sq.Next()
 	assert.Nil(t, err)
@@ -251,5 +270,46 @@ func TestArraySeq (t *testing.T) {
 	val, err = sq.Next()
 	assert.NotNil(t, err)
 	assert.Equal(t, io.EOF, err)
+	assert.Equal(t, 0, val)
+}
+
+func TestArraySeqCount (t *testing.T) {
+	var sq *arraySeq[int] = newArraySeq[int]([]int{2, 4, 3, 5, 1})
+	assert.Equal(t, 5, sq.Count())
+	assert.Equal(t, nil, sq.Err())
+	testEof(t, sq)
+	sq.Reset()
+	val, err := sq.Next()
+	testNextOk(t, 2, val, err)
+}
+
+func TestIndexable0 (t *testing.T) {
+	data := []int{2, 4, 3, 5, 1}
+	var sq *arraySeq[int] = newArraySeq[int](data)
+	var (val int; err error)
+	// data[4] = 1
+	val, err = sq.Get(4)
+	assert.Nil(t, err)
+	assert.Equal(t, 1, val)
+	// data[0] = 2
+	val, err = sq.Get(0)
+	assert.Nil(t, err)
+	assert.Equal(t, 2, val)
+	// data[2] = 3
+	val, err = sq.Get(2)
+	assert.Nil(t, err)
+	assert.Equal(t, 3, val)
+	// data[1] = 4
+	val, err = sq.Get(1)
+	assert.Nil(t, err)
+	assert.Equal(t, 4, val)
+	// data[3] = 5
+	val, err = sq.Get(3)
+	assert.Nil(t, err)
+	assert.Equal(t, 5, val)
+	// data[666] = 0, Err
+	val, err = sq.Get(666)
+	assert.NotNil(t, err)
+	assert.True(t, errors.Is(err, ErrIndexOutOfBounds))
 	assert.Equal(t, 0, val)
 }

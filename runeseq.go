@@ -13,7 +13,7 @@ import (
 // the number of bytes in the rune. Using an iterator, this information would be lost. So RuneSeq
 // makes it available via the `LastSize()` method.
 type RuneSeq struct {
-	*HasErr
+	*HasErr[rune]
 	*HasIter[rune]
 	*HasPosition
 	rd       io.Reader
@@ -24,13 +24,13 @@ type RuneSeq struct {
 // C'tor function
 func NewRuneSeq(rd io.Reader) *RuneSeq {
 	sq := &RuneSeq{
-		HasErr:      NewHasErr(),
 		HasPosition: NewHasPosition(),
 		rd:          rd,
 		brd:         *bufio.NewReaderSize(rd, 16),
 		lastSize:    0,
 	}
 	// HasIter needs the Seq object so it needs special treatment
+	sq.HasErr = NewHasErr(sq)
 	sq.HasIter = NewHasIter(sq)
 	return sq
 }

@@ -1,6 +1,7 @@
 package seq
 
 type FiniteSeq[T comparable] interface {
-	Seq[T]
+	SeqWithErr[T]
 	Count () int
+	Reset () (FiniteSeq[T], error)
 }

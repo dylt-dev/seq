@@ -114,10 +114,20 @@ func IterWithIndex[T comparable](seq Seq[T]) IterFunc2[T] {
 }
 
 type seqLimit[T comparable] struct {
-	*HasErr
+	*HasErr[T]
 	sqInner Seq[T]
 	i       int
 	limit   int
+}
+
+func NewSeqLimit[T comparable] (sqInner Seq[T], limit int) *seqLimit[T]{
+	var sq *seqLimit[T] = &seqLimit[T] {
+		sqInner: sqInner,
+		i: 0,
+		limit: limit,
+	}
+	sq.HasErr = NewHasErr(sq)
+	return sq
 }
 
 func (sq *seqLimit[T]) Next() (T, error) {
@@ -136,19 +146,24 @@ func (sq *seqLimit[T]) Next() (T, error) {
 }
 
 func Limit[T comparable](sqInner Seq[T], limit int) *seqLimit[T] {
-	return &seqLimit[T]{NewHasErr(), sqInner, 0, limit}
+	return NewSeqLimit(sqInner, limit)
 }
 
 type FilterFunc[T comparable] func(T) bool
 
 type seqWhere[T comparable] struct {
-	*HasErr
+	*HasErr[T]
 	sqInner Seq[T]
 	filter  FilterFunc[T]
 }
 
 func NewSeqWhereWrapper[T comparable](sqInner Seq[T], filter FilterFunc[T]) *seqWhere[T] {
-	return &seqWhere[T]{NewHasErr(), sqInner, filter}
+	var sq *seqWhere[T] = &seqWhere[T]{
+		sqInner: sqInner,
+		filter: filter,
+	}
+	sq.HasErr = NewHasErr(sq)
+	return sq
 }
 
 func (sq *seqWhere[T]) Next() (T, error) {
@@ -168,14 +183,20 @@ func Where[T comparable](sqInner Seq[T], filter FilterFunc[T]) *seqWhere[T] {
 }
 
 type seqSkip[T comparable] struct {
-	*HasErr
+	*HasErr[T]
 	sqInner   Seq[T]
 	toSkip    int
 	isSkipped bool
 }
 
 func NewSeqSkipWrapper[T comparable](sqInner Seq[T], toSkip int) *seqSkip[T] {
-	return &seqSkip[T]{NewHasErr(), sqInner, toSkip, false}
+	var sq *seqSkip[T] = &seqSkip[T]{
+		sqInner: sqInner,
+		toSkip: toSkip,
+		isSkipped: false,
+	}
+	sq.HasErr = NewHasErr(sq)
+	return sq
 }
 
 func (sq *seqSkip[T]) Next() (T, error) {
@@ -200,4 +221,16 @@ func (sq *seqSkip[T]) Next() (T, error) {
 
 func Skip[T comparable](sq Seq[T], toSkip int) *seqSkip[T] {
 	return NewSeqSkipWrapper(sq, toSkip)
+}
+
+
+type SeqWithErr[T comparable] interface {
+	Seq[T]
+	Err () error
+	SetErr (err error) SeqWithErr[T]
+}
+
+type SeqIndexable[T comparable] interface {
+	FiniteSeq[T]
+	Get (i int) (T, error)
 }
