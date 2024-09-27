@@ -7,18 +7,24 @@ package seq
 import (
 	"errors"
 	"io"
+	"os"
 )
 
 // 'loop function' for 0-arg for loops (`for range iter`)
 type LoopFunc0 func() bool
+
 // 'loop function' for 1-arg for loops (`for el := range iter')
 type LoopFunc1[T comparable] func(arg T) bool
+
 // 'loop function' for 2-arg for loops (`for idx, el := range iter`)
 type LoopFunc2[T comparable] func(i int, arg T) bool
+
 // iterator for 0-arg for loops
 type IterFunc0 func(loopFunc LoopFunc0)
+
 // iterator for 1-arg for loops
 type IterFunc1[T comparable] func(loopFunc LoopFunc1[T])
+
 // iterator for 2 arg for loops
 type IterFunc2[T comparable] func(loopFunc LoopFunc2[T])
 type NextFunc0 func() error
@@ -34,18 +40,17 @@ type NextFunc2[T comparable] func() (int, T, error)
 // needed. `Next()` indicates completion by returning *new(T), io.EOF, where `*new(T)` represents an empty value for
 // type T, eg 0, nil, of "". Go currently has no better idiom for representing a generic empty value. Consumers of
 // a Seq, eg iterators, can check for return values of (*new*T(), nil) to know when to stop calling Next() and finish
-// up. 
+// up.
 //
 // structs that implement `Seq` might want to make other information available about the last operation or about
 // the aggregate use of the `Seq`. File-based `Seq`s might track file position ... Network-based `Seq`s might track
 // total bytes received ... it's entirely up to the creator. Users who create Iterators from `Seq`s can check `Seq`
-// custom properties as needed. The only requirement is that the struct's Seq.Next()` method updates those custom 
+// custom properties as needed. The only requirement is that the struct's Seq.Next()` method updates those custom
 // properties as appropriate.
 type Seq[T comparable] interface {
 	// Get the next element in the sequence, and an error or nil
 	Next() (T, error)
 }
-
 
 // Next() through the entire sequence until exhaustion to count the number of elements
 //
@@ -120,11 +125,11 @@ type seqLimit[T comparable] struct {
 	limit   int
 }
 
-func NewSeqLimit[T comparable] (sqInner Seq[T], limit int) *seqLimit[T]{
-	var sq *seqLimit[T] = &seqLimit[T] {
+func NewSeqLimit[T comparable](sqInner Seq[T], limit int) *seqLimit[T] {
+	var sq *seqLimit[T] = &seqLimit[T]{
 		sqInner: sqInner,
-		i: 0,
-		limit: limit,
+		i:       0,
+		limit:   limit,
 	}
 	sq.HasErr = NewHasErr(sq)
 	return sq
@@ -160,7 +165,7 @@ type seqWhere[T comparable] struct {
 func NewSeqWhereWrapper[T comparable](sqInner Seq[T], filter FilterFunc[T]) *seqWhere[T] {
 	var sq *seqWhere[T] = &seqWhere[T]{
 		sqInner: sqInner,
-		filter: filter,
+		filter:  filter,
 	}
 	sq.HasErr = NewHasErr(sq)
 	return sq
@@ -191,8 +196,8 @@ type seqSkip[T comparable] struct {
 
 func NewSeqSkipWrapper[T comparable](sqInner Seq[T], toSkip int) *seqSkip[T] {
 	var sq *seqSkip[T] = &seqSkip[T]{
-		sqInner: sqInner,
-		toSkip: toSkip,
+		sqInner:   sqInner,
+		toSkip:    toSkip,
 		isSkipped: false,
 	}
 	sq.HasErr = NewHasErr(sq)
@@ -223,14 +228,49 @@ func Skip[T comparable](sq Seq[T], toSkip int) *seqSkip[T] {
 	return NewSeqSkipWrapper(sq, toSkip)
 }
 
-
 type SeqWithErr[T comparable] interface {
 	Seq[T]
-	Err () error
-	SetErr (err error) SeqWithErr[T]
+	Err() error
+	SetErr(err error) SeqWithErr[T]
 }
 
-type SeqIndexable[T comparable] interface {
-	FiniteSeq[T]
-	Get (i int) (T, error)
+type Indexable[T comparable] interface {
+	Count() (int, error)
+	Get(i int) (T, error)
+}
+
+type IndexableFile struct {
+	path string
+}
+
+
+func (o *IndexableFile) Count () (int, error) {
+	var f *os.File
+	var err error
+	f, err = os.Open(o.path)
+	if err != nil { return 0, err }
+	var sq LineSeq = *NewLineSeq(f)
+	var i int = 0
+	for range sq.IterNoArg() {
+		i++
+	}
+	return i, sq.Err()
+}
+
+func (o *IndexableFile) Get (i int) (string, error) {
+	var f *os.File
+	var err error
+	f, err = os.Open(o.path)
+	if err != nil { return "", err }
+	var sq LineSeq = *NewLineSeq(f)
+	var val string
+	for range i {
+		val, err = sq.Next()
+		sq.SetErr(err)
+		if val == "" && err != nil {
+			break
+		}
+	}
+	val, err = sq.Next()
+	return val, err
 }
